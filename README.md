@@ -30,10 +30,8 @@ It has **not** been trained or validated on real patient data.
 ```
 uf-risk-model/
 │
-├── app/
-│   ├── app.py                  # Main Streamlit app
-│   ├── shap_plot.py            # SHAP visualisation logic
-│   └── pdf_report.py           # PDF generation logic
+├── fibroids_hospital_app/
+│   └── app.py                  # Main Streamlit app
 │
 ├── model/
 │   ├── uf_fibroids_final_model.pkl
@@ -49,10 +47,6 @@ uf-risk-model/
 ├── scripts/
 │   └── synthetic_data.py       # Script to generate synthetic dataset
 │
-├── docs/
-│   └── USER_MANUAL.md          # End-user guide
-│
-├── requirements.txt
 └── README.md
 ```
 
