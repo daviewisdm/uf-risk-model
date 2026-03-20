@@ -131,4 +131,4 @@ Output: synthetic_fibroids_data.csv
 4. Deploy on secure server with authentication
 5. Build patient-facing RAG chatbot for fibroid education
 
-#### Kibet W.(2026)
+#### Kibet W. (2026)
