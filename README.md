@@ -59,8 +59,8 @@ uf-risk-model/
 ## Quick Start – Run the Demo App
 1. Clone/Fork the repo
 ```bash
-git clone https://github.com/<your-username>/Obi-Kaya.git
-cd Obi-Kaya
+git clone https://github.com/<your-username>/uf-risk-model.git
+cd uf-risk-model
 ```
    
 3. Navigate to the app folder
