@@ -62,17 +62,16 @@ uf-risk-model/
 git clone https://github.com/<your-username>/uf-risk-model.git
 cd uf-risk-model
 ```
-   
+2. Install dependencies
+
+```bash
+pip install streamlit pandas numpy scikit-learn joblib shap matplotlib fpdf2
+```
 3. Navigate to the app folder
 
 ```bash
 cd fibroids_hospital_app
 
-```
-3. Install dependencies
-
-```bash
-pip install streamlit pandas numpy scikit-learn joblib shap matplotlib fpdf2
 ```
 4. Launch
    
