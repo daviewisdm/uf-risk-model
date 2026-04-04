@@ -1,0 +1,18 @@
+credentials:
+  usernames:
+    dr_wanjiru:
+      name: Dr. Wanjiru Kamau
+      password: $2b$12$Q4Xwc6x6c6D0SAANuWMWpezpBge6xCUaQridDMfjMwp0dBzuzAJX.   # we'll generate this below
+      role: doctor
+    nurse_achieng:
+      name: Nurse Achieng Otieno
+      password: $2b$12$di1Ze3nUSzuhQH3hUmLeIeBfI1qzBsunBBe3Hcd5yDykSnf5wiZZe
+      role: nurse
+
+cookie:
+  expiry_days: 1
+  key: uf_risk_secret_key_2024   # change this to any long random string
+  name: uf_risk_cookie
+
+preauthorized:
+  emails: []

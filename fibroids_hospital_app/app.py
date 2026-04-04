@@ -1,11 +1,13 @@
-# Import Ne
 import streamlit as st
 import joblib
 import pandas as pd
 import numpy as np
-import shap
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from fpdf import FPDF
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
 import tempfile
 import os
 import warnings
@@ -14,16 +16,58 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 st.set_page_config(page_title="Uterine Fibroids Risk Tool", layout="wide")
+
+# Auth — load config and render login page
+
+base_dir = os.path.dirname(__file__)
+
+with open(os.path.join(base_dir, "config.yaml")) as f:
+    config = yaml.load(f, Loader=SafeLoader)
+
+authenticator = stauth.Authenticate(
+    config["credentials"],
+    config["cookie"]["name"],
+    config["cookie"]["key"],
+    config["cookie"]["expiry_days"],
+)
+
+name, authentication_status, username = authenticator.login(
+    location="main",
+    fields={
+        "Form name": "🩺 Uterine Fibroids Risk Tool",
+        "Username": "Username",
+        "Password": "Password",
+        "Login": "Sign In"
+    }
+)
+
+# ── Not logged in ─────────────────────────────────────────────────────────────
+if authentication_status is False:
+    st.error("Incorrect username or password. Please try again.")
+    st.stop()
+
+if authentication_status is None:
+    st.info("Please enter your credentials to access the system.")
+    st.stop()
+
+# ── Logged in ─────────────────────────────────────────────────────────────────
+role = config["credentials"]["usernames"][username]["role"]
+
+with st.sidebar:
+    st.markdown(f"**Logged in as:** {name}")
+    st.markdown(f"**Role:** {role.title()}")
+    st.markdown("---")
+    authenticator.logout("Sign Out", location="sidebar")
+
 st.title("🩺 Uterine Fibroids Risk Prediction")
-st.caption("Master's Project – Logistic Regression Model – Research Prototype Only")
-st.markdown("**Not for clinical decision-making without validation**")
 
 # Load model and preprocessor
 @st.cache_resource
 def load_assets():
     try:
-        model = joblib.load('uf_fibroids_final_model.pkl')
-        preprocessor = joblib.load('uf_preprocessor.pkl')
+        # FIX 2: Load pkl files relative to app.py
+        model = joblib.load(os.path.join(base_dir, 'uf_fibroids_final_model.pkl'))
+        preprocessor = joblib.load(os.path.join(base_dir, 'uf_preprocessor.pkl'))
         return model, preprocessor
     except Exception as e:
         st.error(f"Model loading failed: {str(e)}")
@@ -31,7 +75,7 @@ def load_assets():
 
 model, preprocessor = load_assets()
 
-# Patient input form
+# Patient input form (both roles see this)
 st.sidebar.header("Patient Information")
 
 col1, col2 = st.columns(2)
@@ -54,22 +98,15 @@ with col2:
     stress_level = st.slider("Stress Level (1-10)", 1, 10, 5)
 
 input_df = pd.DataFrame([{
-    'Age': age,
-    'Race': race,
-    'BMI': bmi,
-    'Parity': parity,
-    'Menarche_Age': menarche_age,
-    'Hypertension': hypertension,
-    'PCOS': pcos,
-    'Vitamin_D_Deficient': vitamin_d_def,
-    'Diet_Quality': diet_quality,
-    'Physical_Activity': physical_activity,
-    'Smoking': smoking,
-    'Family_History': family_history,
+    'Age': age, 'Race': race, 'BMI': bmi, 'Parity': parity,
+    'Menarche_Age': menarche_age, 'Hypertension': hypertension,
+    'PCOS': pcos, 'Vitamin_D_Deficient': vitamin_d_def,
+    'Diet_Quality': diet_quality, 'Physical_Activity': physical_activity,
+    'Smoking': smoking, 'Family_History': family_history,
     'Stress_Level': stress_level
 }])
 
-# Prediction
+# Prediction (both roles see this)
 proba = model.predict_proba(input_df)[0][1]
 risk_pct = round(proba * 100, 1)
 
@@ -83,7 +120,14 @@ else:
 st.subheader("Prediction Result")
 st.metric("Estimated Risk of Uterine Fibroids", f"{risk_pct}%", f"{color} {level}")
 
-# SHAP Explanation - using model coefficients directly (correct for LogReg)
+# NURSE VIEW ends here
+if role == "nurse":
+    st.info("For detailed model explanation and PDF report, please consult the attending doctor.")
+    st.markdown("---")
+    st.caption("App ready for research / demonstration use.")
+    st.stop()
+
+# DOCTOR VIEW — SHAP + PDF
 st.subheader("SHAP Explanation (Why this prediction?)")
 
 try:
@@ -91,29 +135,23 @@ try:
     feature_names = list(preprocessor.get_feature_names_out())
     classifier = model.named_steps['classifier']
 
-    # For logistic regression, SHAP values = coefficient * feature_value
-    # This is the mathematically correct approach — no background data needed
     coefficients = classifier.coef_[0]
     shap_vals = coefficients * X_trans[0]
 
-    # Sort by absolute impact, top 12
     top_n = 12
     indices = np.argsort(np.abs(shap_vals))[::-1][:top_n]
-
     top_shap = shap_vals[indices]
     top_names = [feature_names[i] for i in indices]
     top_data = X_trans[0][indices]
 
-    # Clean up feature name prefixes for display
-    def clean_name(name):
-        return name.replace("num__", "").replace("cat__", "").replace("_", " ").title()
+    def clean_name(n):
+        return n.replace("num__", "").replace("cat__", "").replace("_", " ").title()
 
     top_labels = [
         f"{clean_name(fn)}  =  {fv:.2f}" if isinstance(fv, float) else f"{clean_name(fn)}  =  {fv}"
         for fn, fv in zip(top_names, top_data)
     ]
 
-    # Plot
     fig, ax = plt.subplots(figsize=(14, 8))
     fig.patch.set_facecolor("#f0f0f0")
     ax.set_facecolor("#f0f0f0")
@@ -125,39 +163,28 @@ try:
     ax.set_yticklabels(top_labels, fontsize=13)
     ax.invert_yaxis()
 
-    # Value labels on bars
     for i, (bar, val) in enumerate(zip(bars, top_shap)):
         offset = max(np.abs(top_shap)) * 0.02
         ax.text(
             val + (offset if val >= 0 else -offset),
-            i,
-            f"{val:+.4f}",
+            i, f"{val:+.4f}",
             va='center',
             ha='left' if val >= 0 else 'right',
-            fontsize=11,
-            fontweight='bold',
-            color="#222222"
+            fontsize=11, fontweight='bold', color="#222222"
         )
 
     ax.axvline(0, color="#444444", linewidth=1.2, linestyle="--")
     ax.set_xlabel("SHAP Value  (positive = increases risk,  negative = decreases risk)", fontsize=13)
-
-    # Predicted probability for title
-    pred_prob = classifier.predict_proba(X_trans)[0][1]
     ax.set_title(
-        f"Top {top_n} Features Driving This Prediction  |  Predicted risk: {pred_prob:.1%}",
-        fontsize=15,
-        fontweight="bold",
-        pad=15
+        f"Top {top_n} Features Driving This Prediction  |  Predicted risk: {proba:.1%}",
+        fontsize=15, fontweight="bold", pad=15
     )
 
-    from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor="#e03232", label="Increases risk"),
         Patch(facecolor="#3278e0", label="Decreases risk"),
     ]
     ax.legend(handles=legend_elements, fontsize=12, loc="lower right")
-
     plt.tight_layout(pad=2.0)
 
     tmp_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
@@ -172,7 +199,7 @@ except Exception as e:
     st.warning(f"SHAP generation failed: {str(e)}")
     st.exception(e)
 
-# PDF Report (simple Helvetica - no font download)
+# PDF Report (doctor only)
 def generate_pdf():
     pdf = FPDF()
     pdf.add_page()
@@ -182,6 +209,7 @@ def generate_pdf():
 
     pdf.set_font("Helvetica", "", 12)
     pdf.cell(0, 10, f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}", ln=1)
+    pdf.cell(0, 10, f"Reviewed by: {name}", ln=1)
     pdf.cell(0, 10, f"Estimated Risk: {risk_pct}% - {level}", ln=1)
     pdf.ln(10)
 
@@ -189,7 +217,6 @@ def generate_pdf():
     pdf.cell(0, 10, "Patient Details:", ln=1)
     pdf.set_font("Helvetica", "", 11)
 
-    # FIX 2: Replace unicode bullet "•" with plain "-" (Helvetica is Latin-1 only)
     for col, val in input_df.iloc[0].items():
         pdf.cell(0, 8, f"- {col.replace('_', ' ')}: {val}", ln=1)
 
@@ -197,12 +224,12 @@ def generate_pdf():
     pdf.set_font("Helvetica", "I", 10)
     pdf.multi_cell(0, 8, "Note: This is a research prototype. Not a substitute for clinical evaluation or imaging.")
 
+    # FIX 3: Typo — NamedTemporementFile -> NamedTemporaryFile
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf').name
     pdf.output(pdf_file)
     return pdf_file
 
-
-if st.button("📄 Generate & Download PDF Report"):
+if st.button("Generate & Download PDF Report"):
     try:
         pdf_path = generate_pdf()
         with open(pdf_path, "rb") as f:
